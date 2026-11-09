@@ -28,7 +28,11 @@ class StepperMotor:
         [1, 0, 0, 1], # A+ B-
     ]
 
-    def __init__(self, pins=STEPPER_PINS, sleep_pin=STEPPER_SLEEP_PIN):
+    def __init__(self):
+        # Pins are configured separately before using the component.
+        pass
+
+    def setup_pins(self, pins=STEPPER_PINS, sleep_pin=STEPPER_SLEEP_PIN):
         self.pins = tuple(pins)
         self.sleep_pin = sleep_pin
         self._phase = None
@@ -73,6 +77,7 @@ class StepperMotor:
 
 def main():
     motor = StepperMotor()
+    motor.setup_pins()
     try:
         motor.move(steps=600, step_delay=0.01, direction="ccw")
     except KeyboardInterrupt:

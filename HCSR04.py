@@ -14,7 +14,11 @@ INTERVAL = 0.5  # Keep above 0.060 seconds between readings.
 
 
 class HCSR04:
-    def __init__(self, trig=HCSR04_TRIG_PIN, echo=HCSR04_ECHO_PIN):
+    def __init__(self):
+        # Pins are configured separately before using the component.
+        pass
+
+    def setup_pins(self, trig=HCSR04_TRIG_PIN, echo=HCSR04_ECHO_PIN):
         self.trig = trig
         self.echo = echo
         GPIO.setmode(GPIO.BCM)
@@ -87,6 +91,7 @@ class HCSR04:
 
 def main():
     sensor = HCSR04()
+    sensor.setup_pins()
     try:
         sensor.record()
     except KeyboardInterrupt:

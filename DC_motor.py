@@ -6,7 +6,11 @@ DC_PWM_PIN = 12
 
 
 class DCMotor:
-    def __init__(self, pin=DC_PWM_PIN, freq=10):
+    def __init__(self):
+        # Pins are configured separately before using the component.
+        pass
+
+    def setup_pins(self, pin=DC_PWM_PIN, freq=10):
         self.pin = pin
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(pin, GPIO.OUT)
@@ -56,6 +60,7 @@ class DCMotor:
 
 def main():
     motor = DCMotor()
+    motor.setup_pins()
     try:
         motor.run(freq=10, dc=50, duration=5)
     except KeyboardInterrupt:

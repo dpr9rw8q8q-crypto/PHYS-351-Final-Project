@@ -21,7 +21,11 @@ class RGBLight:
         [1, 1, 1],
     ]
 
-    def __init__(self, red=RGB_RED_PIN, green=RGB_GREEN_PIN, blue=RGB_BLUE_PIN,
+    def __init__(self):
+        # Pins are configured separately before using the component.
+        pass
+
+    def setup_pins(self, red=RGB_RED_PIN, green=RGB_GREEN_PIN, blue=RGB_BLUE_PIN,
                  active_high=RGB_ACTIVE_HIGH):
         self.led = RGBLED(red=red, green=green, blue=blue, active_high=active_high)
 
@@ -56,6 +60,7 @@ class RGBLight:
 
 def main():
     light = RGBLight()
+    light.setup_pins()
     try:
         light.on(color=1, duration=5)
     except KeyboardInterrupt:

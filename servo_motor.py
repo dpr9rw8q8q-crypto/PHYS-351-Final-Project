@@ -19,7 +19,11 @@ class ServoMotor:
     M = 0.05137
     B = 7.4555
 
-    def __init__(self, pin=SERVO_PWM_PIN):
+    def __init__(self):
+        # Pins are configured separately before using the component.
+        pass
+
+    def setup_pins(self, pin=SERVO_PWM_PIN):
         self.pin = pin
         # BCM GPIO pin connected to servo PWM wire
         # Sets pin numbering ID to BCM mode
@@ -89,6 +93,7 @@ class ServoMotor:
 
 def main():
     motor = ServoMotor()
+    motor.setup_pins()
     try:
         motor.move(angle=45, duration=5)
     except KeyboardInterrupt:
