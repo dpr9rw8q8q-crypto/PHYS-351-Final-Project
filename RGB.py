@@ -60,7 +60,7 @@ class RGBLight:
 
 def main():
     light = RGBLight()
-    light.setup_pins()
+    light.setup_pins(red=22, green=17, blue=27)
     try:
         light.on(color=1, duration=5)
     except KeyboardInterrupt:

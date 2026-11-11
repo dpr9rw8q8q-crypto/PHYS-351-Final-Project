@@ -2,6 +2,8 @@ import time
 import csv
 import RPi.GPIO as GPIO
 
+# Code Works
+
 # GPIO configuration (BCM numbering): edit these to match your wiring.
 HCSR04_TRIG_PIN = 17
 HCSR04_ECHO_PIN = 27
@@ -54,8 +56,12 @@ class HCSR04:
             return None
 
         # Divide by two for the outward and return journey.
-        return SOUND_SPEED * duration / 2
-    
+        meters = SOUND_SPEED * duration / 2
+        cm = meters * 100
+        mm = meters * 1000
+        inches = cm / 2.54
+        print(f"{meters:.2f} m | {cm:.0f} cm | {mm:.0f} mm | {inches:.1f} in")
+        return meters
 
     def record(self, filename=None):
         """Print and save readings until Ctrl+C."""
@@ -87,11 +93,15 @@ class HCSR04:
         GPIO.cleanup((self.trig, self.echo))
 
 
+
+
+
+
 # Test
 
 def main():
     sensor = HCSR04()
-    sensor.setup_pins()
+    sensor.setup_pins(trig=17, echo=27)
     try:
         sensor.record()
     except KeyboardInterrupt:

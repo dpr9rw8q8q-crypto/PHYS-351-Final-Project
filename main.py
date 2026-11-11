@@ -2,7 +2,7 @@
 from HCSR04 import HCSR04
 from RGB import RGBLight
 from DC_motor import DCMotor
-from servo_motor import ServoMotor
+from servo_motor import SolenoidValve
 from stepper_motor import StepperMotor
 
 
@@ -10,12 +10,13 @@ from stepper_motor import StepperMotor
 # GPIO pins for each component (BCM numbering).
 # These preserve the current wiring; some pins overlap, so tests run one at a time.
 SENSOR_TRIG_PIN = 17
-SENSOR_ECHO_PIN = 27
+SENSOR_ECHO_PIN = 2
 LIGHT_RED_PIN = 22
 LIGHT_GREEN_PIN = 17
 LIGHT_BLUE_PIN = 27
+
 DC_MOTOR_PIN = 12
-SERVO_PIN = 17
+
 STEPPER_AIN1_PIN = 4
 STEPPER_AIN2_PIN = 22
 STEPPER_BIN1_PIN = 17
@@ -60,13 +61,13 @@ def main():
     finally:
         motor.close()
 
-    # Move the arm to a sample position.
-    servo = ServoMotor()
-    servo.setup_pins(pin=SERVO_PIN)
+    # Briefly energize the valve at full duty.
+    valve = SolenoidValve()
+    valve.setup_pins()
     try:
-        servo.move(angle=45, duration=2)
+        valve.run(duty_cycle=100, duration=0.5)
     finally:
-        servo.close()
+        valve.close()
 
     print("Dummy component sequence finished.")
     # TODO: Add the real menu, order loop, and remaining sensors later.
