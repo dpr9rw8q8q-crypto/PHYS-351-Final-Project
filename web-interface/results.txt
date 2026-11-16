@@ -1,0 +1,6 @@
+{"tea":"classic_milk_tea","sugar_percent":50,"ice":"regular","boba":true}
+{"tea":"matcha_milk_tea","sugar_percent":50,"ice":"regular","boba":true}
+{"tea":"classic_milk_tea","sugar_percent":50,"ice":"regular","boba":true}
+{"tea":"matcha_milk_tea","sugar_percent":50,"ice":"light","boba":false}
+{"tea":"taro_milk_tea","sugar_percent":50,"ice":"light","boba":true}
+{"tea":"taro_milk_tea","sugar_percent":50,"ice":"none","boba":true}

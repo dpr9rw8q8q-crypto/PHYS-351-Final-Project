@@ -1,0 +1,25 @@
+/* Basic spacing. Add your design here. */
+body {
+  margin: 1rem;
+  font-family: system-ui, sans-serif;
+}
+
+main {
+  max-width: 48rem;
+}
+
+fieldset {
+  min-width: 0;
+  margin: 0 0 0.75rem;
+}
+
+label {
+  display: inline-block;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+}
+
+button {
+  font: inherit;
+  padding: 0.4rem 0.8rem;
+}

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Storm Stop Boba</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./order.js"></script>
+</head>
+<body>
+  <main>
+    <h1>Storm Stop Boba</h1>
+    <h2 id="menu">Menu</h2>
+    <form id="order" aria-labelledby="menu">
+      <fieldset>
+        <legend>Tea</legend>
+        <label><input type="radio" name="tea" value="classic_milk_tea" data-label="Classic Milk Tea" checked> Classic Milk Tea</label>
+        <label><input type="radio" name="tea" value="matcha_milk_tea" data-label="Matcha Milk Tea"> Matcha Milk Tea</label>
+        <label><input type="radio" name="tea" value="taro_milk_tea" data-label="Taro Milk Tea"> Taro Milk Tea</label>
+      </fieldset>
+      <fieldset>
+        <legend>Sweetness</legend>
+        <label><input type="radio" name="sugar_percent" value="0"> 0%</label>
+        <label><input type="radio" name="sugar_percent" value="50" checked> 50%</label>
+        <label><input type="radio" name="sugar_percent" value="100"> 100%</label>
+      </fieldset>
+      <fieldset>
+        <legend>Ice</legend>
+        <label><input type="radio" name="ice" value="none" data-label="No ice"> None</label>
+        <label><input type="radio" name="ice" value="light" data-label="Light ice"> Light</label>
+        <label><input type="radio" name="ice" value="regular" data-label="Regular ice" checked> Regular</label>
+      </fieldset>
+      <fieldset>
+        <legend>Boba pearls</legend>
+        <label><input type="radio" name="boba" value="yes" checked> Add pearls</label>
+        <label><input type="radio" name="boba" value="no"> Skip</label>
+      </fieldset>
+
+      <h2>Order summary</h2>
+      <p><strong id="summary-tea">Classic Milk Tea</strong><br>
+        <span id="summary-options">50% sugar · Regular ice · Boba pearls</span></p>
+      <button type="submit" id="submit" disabled>Submit order</button>
+      <p id="status" role="status" aria-live="polite"></p>
+    </form>
+  </main>
+</body>
+</html>
