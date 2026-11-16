@@ -1,7 +1,7 @@
-import RPi.GPIO as GPIO
+from pins import Pin, expander
 from time import sleep
 
-# GPIO configuration (BCM numbering):
+# Use BCM numbers or expander(0..15). Prefer Pi pins for faster stepping.
 STEPPER_AIN1_PIN = 4
 STEPPER_AIN2_PIN = 22
 STEPPER_BIN1_PIN = 17
@@ -33,19 +33,16 @@ class StepperMotor:
         pass
 
     def setup_pins(self, pins=STEPPER_PINS, sleep_pin=STEPPER_SLEEP_PIN):
-        self.pins = tuple(pins)
-        self.sleep_pin = sleep_pin
+        self.sleep_pin = Pin(sleep_pin, output=True)
+        self.pins = tuple(Pin(pin, output=True) for pin in pins)
         self._phase = None
-        GPIO.setmode(GPIO.BCM)
-        for pin in (*self.pins, self.sleep_pin):
-            GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
 
     def move(self, steps=600, step_delay=0.01, direction="cw"):
         """Move full steps, then release the coils and put the driver to sleep."""
         # Sets direction: either +1 or -1 for clockwise or counterclockwise rotation.
         step_direction = 1 if direction == "cw" else -1
         try:
-            GPIO.output(self.sleep_pin, GPIO.HIGH)
+            self.sleep_pin.write(True)
             for _ in range(steps):
                 # Preserve phase across calls so successive moves remain continuous.
                 if self._phase is None:
@@ -53,18 +50,21 @@ class StepperMotor:
                 else:
                     self._phase = (self._phase + step_direction) % 4
                 state = self.FULL_STEP_TABLE[self._phase]
-                GPIO.output(self.pins, state)
+                for pin, value in zip(self.pins, state):
+                    pin.write(value)
                 sleep(step_delay)
         finally:
             self.stop()
 
     def stop(self):
-        GPIO.output(self.pins, GPIO.LOW)
-        GPIO.output(self.sleep_pin, GPIO.LOW)
+        self.sleep_pin.write(False)
+        for pin in self.pins:
+            pin.write(False)
 
     def close(self):
         self.stop()
-        GPIO.cleanup((*self.pins, self.sleep_pin))
+        for pin in (*self.pins, self.sleep_pin):
+            pin.close()
 
 
 

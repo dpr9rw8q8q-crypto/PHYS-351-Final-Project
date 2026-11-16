@@ -3,9 +3,10 @@
 from math import isfinite
 from time import sleep
 
-import RPi.GPIO as GPIO
+from pins import ExpanderPin, Pin, expander, pi_gpio
 
 
+# BCM GPIO for PWM; expander(0..15) for full on/off only.
 SOLENOID_PWM_PIN = 23
 
 
@@ -14,7 +15,10 @@ class SolenoidValve:
         if not isfinite(frequency) or frequency <= 0:
             raise ValueError("Frequency must be positive.")
         self.pin = pin
-        GPIO.setmode(GPIO.BCM)
+        self.digital = Pin(pin, output=True) if isinstance(pin, ExpanderPin) else None
+        if self.digital is not None:
+            return
+        GPIO = pi_gpio()
         GPIO.setup(pin, GPIO.OUT, initial=GPIO.LOW)
         self.pwm = GPIO.PWM(pin, frequency)
         self.pwm.start(0)
@@ -25,18 +29,30 @@ class SolenoidValve:
             raise ValueError("Duty cycle must be between 0 and 100.")
         if not isfinite(duration) or duration < 0:
             raise ValueError("Duration must be finite and nonnegative.")
+        if self.digital is not None and duty_cycle not in (0, 100):
+            raise ValueError("Partial solenoid duty uses PWM; choose a Pi pin or 0/100%.")
         try:
-            self.pwm.ChangeDutyCycle(duty_cycle)
+            if self.digital is not None:
+                self.digital.write(duty_cycle == 100)
+            else:
+                self.pwm.ChangeDutyCycle(duty_cycle)
             sleep(duration)
         finally:
             self.stop()
 
     def stop(self):
-        self.pwm.ChangeDutyCycle(0)
+        if self.digital is not None:
+            self.digital.write(False)
+        else:
+            self.pwm.ChangeDutyCycle(0)
 
     def close(self):
         try:
             self.stop()
-            self.pwm.stop()
+            if self.digital is None:
+                self.pwm.stop()
         finally:
-            GPIO.cleanup(self.pin)
+            if self.digital is not None:
+                self.digital.close()
+            else:
+                pi_gpio().cleanup(self.pin)

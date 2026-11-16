@@ -1,55 +1,70 @@
-from gpiozero import RGBLED
+"""Adafruit #3350 RGB button control. Assisted by ChatGPT."""
+
 from time import sleep
 
-# GPIO configuration (BCM numbering): edit these to match your wiring.
-RGB_RED_PIN = 22
-RGB_GREEN_PIN = 17
-RGB_BLUE_PIN = 27
-RGB_ACTIVE_HIGH = True  # False for a common-anode LED.
+from pins import Pin, expander
+
+# BCM GPIO numbers or expander(0..15). RGB pins drive MOSFET gates.
+RGB_RED_PIN = 6
+RGB_GREEN_PIN = 16
+RGB_BLUE_PIN = 20
+BUTTON_PIN = 5
+RGB_ACTIVE_HIGH = True  # HIGH at the gate pulls the ring cathode LOW.
 
 
 class RGBLight:
-    # Columns are [red, green, blue]: 
-    # Rows: red, green, blue, yellow, cyan, magenta, white.
-    COLORS = [
-        [1, 0, 0],
-        [0, 1, 0],
-        [0, 0, 1],
-        [1, 1, 0],
-        [0, 1, 1],
-        [1, 0, 1],
-        [1, 1, 1],
-    ]
-
-    def __init__(self):
-        # Pins are configured separately before using the component.
-        pass
+    COLORS = {
+        "red": (1, 0, 0),
+        "green": (0, 1, 0),
+        "blue": (0, 0, 1),
+        "yellow": (1, 1, 0),
+        "cyan": (0, 1, 1),
+        "magenta": (1, 0, 1),
+        "white": (1, 1, 1),
+    }
 
     def setup_pins(self, red=RGB_RED_PIN, green=RGB_GREEN_PIN, blue=RGB_BLUE_PIN,
-                 active_high=RGB_ACTIVE_HIGH):
-        self.led = RGBLED(red=red, green=green, blue=blue, active_high=active_high)
+                   active_high=RGB_ACTIVE_HIGH, *, button=BUTTON_PIN):
+        self.active_high = active_high
+        self.channels = [Pin(pin, output=True, initial=not active_high)
+                         for pin in (red, green, blue)]
+        # Use an external 10 kΩ pull-up to 3.3 V on the switch input.
+        self.button = Pin(button) if button is not None else None
+
+    def is_pressed(self):
+        """Read the momentary switch. Pressing connects the input to GND."""
+        if self.button is None:
+            raise RuntimeError("No switch input configured.")
+        return not self.button.read()
 
     def set_color(self, color):
-        """Set a color index (0–6) and leave the LED on."""
-        self.led.color = self.COLORS[color]
+        """Set a named color or a legacy index (0–6)."""
+        if type(color) is int and 0 <= color < len(self.COLORS):
+            color = tuple(self.COLORS)[color]
+        if not isinstance(color, str) or color.lower() not in self.COLORS:
+            raise ValueError("Choose red, green, blue, yellow, cyan, magenta, or white.")
+        for pin, enabled in zip(self.channels, self.COLORS[color.lower()]):
+            pin.write(bool(enabled) == self.active_high)
 
-    def on(self, color, duration):
-        """Show a color for duration seconds, then turn off."""
-        try:
-            self.set_color(color)
-            sleep(duration)
-        finally:
-            self.off()
+    def on(self, color="blue", duration=None):
+        """Light the ring until off(), or for duration seconds if given."""
+        self.set_color(color)
+        if duration is not None:
+            try:
+                sleep(duration)
+            finally:
+                self.off()
 
     def off(self):
-        """ Turns off the LED """
-        self.led.off()
+        for pin in self.channels:
+            pin.write(not self.active_high)
 
     def close(self):
-        """ Propeerly closes the LED and releases GPIO resources """
-        self.led.close()
-
-
+        self.off()
+        for pin in self.channels:
+            pin.close()
+        if self.button is not None:
+            self.button.close()
 
 
 
@@ -60,11 +75,18 @@ class RGBLight:
 
 def main():
     light = RGBLight()
-    light.setup_pins(red=22, green=17, blue=27)
+    light.setup_pins()
     try:
-        light.on(color=1, duration=5)
+        print("Blue = idle; green = pressed. Ctrl+C to stop.")
+        last = None
+        while True:
+            pressed = light.is_pressed()
+            if pressed != last:
+                light.on(color="green" if pressed else "blue")
+                last = pressed
+            sleep(0.05)
     except KeyboardInterrupt:
-        print("\nProgram ended.")
+        pass
     finally:
         light.close()
 

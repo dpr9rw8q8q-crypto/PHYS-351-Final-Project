@@ -1,10 +1,10 @@
 import time
 import csv
-import RPi.GPIO as GPIO
+from pins import Pin, require_pi
 
 # Code Works
 
-# GPIO configuration (BCM numbering): edit these to match your wiring.
+# Native BCM pins only: trigger and echo use short pulses.
 HCSR04_TRIG_PIN = 17
 HCSR04_ECHO_PIN = 27
 
@@ -21,32 +21,34 @@ class HCSR04:
         pass
 
     def setup_pins(self, trig=HCSR04_TRIG_PIN, echo=HCSR04_ECHO_PIN):
-        self.trig = trig
-        self.echo = echo
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(trig, GPIO.OUT, initial=GPIO.LOW)
-        GPIO.setup(echo, GPIO.IN)
+        require_pi(trig, "HC-SR04 trigger")
+        require_pi(echo, "HC-SR04 echo")
+        self.trig = Pin(trig, output=True)
+        self.echo = Pin(echo)
         time.sleep(0.1)
 
     def read_distance(self):
-        """Return distance in meters, or None for an invalid reading."""
-        if GPIO.input(self.echo) == GPIO.HIGH:
+        """Return distance in meters, or None for an invalid reading.
+        
+        Returns distance in meters.
+        """
+        if self.echo.read():
             return None
 
         # Send the trigger pulse.
-        GPIO.output(self.trig, GPIO.HIGH)
+        self.trig.write(True)
         time.sleep(0.0001)
-        GPIO.output(self.trig, GPIO.LOW)
+        self.trig.write(False)
 
         # Wait for Echo to rise.
         deadline = time.perf_counter() + TIMEOUT
-        while GPIO.input(self.echo) == GPIO.LOW:
+        while not self.echo.read():
             if time.perf_counter() > deadline:
                 return None
         start = time.perf_counter()
 
         # Wait for Echo to fall.
-        while GPIO.input(self.echo) == GPIO.HIGH:
+        while self.echo.read():
             if time.perf_counter() - start > TIMEOUT:
                 return None
         duration = time.perf_counter() - start
@@ -63,34 +65,10 @@ class HCSR04:
         print(f"{meters:.2f} m | {cm:.0f} cm | {mm:.0f} mm | {inches:.1f} in")
         return meters
 
-    def record(self, filename=None):
-        """Print and save readings until Ctrl+C."""
-        filename = filename or time.strftime("distance_%Y%m%d_%H%M%S.csv")
-        with open(filename, "w", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerow(["time_s", "m", "cm", "mm", "inches", "status"])
-            start = time.perf_counter()
-            try:
-                while True:
-                    elapsed = round(time.perf_counter() - start, 3)
-                    meters = self.read_distance()
-                    if meters is None:
-                        print("No valid echo")
-                        writer.writerow([elapsed, "", "", "", "", "No valid echo"])
-                    else:
-                        cm = meters * 100
-                        mm = meters * 1000
-                        inches = cm / 2.54
-                        print(f"{meters:.2f} m | {cm:.0f} cm | {mm:.0f} mm | {inches:.1f} in")
-                        writer.writerow([elapsed, meters, cm, mm, inches, "OK"])
-                    file.flush()
-                    time.sleep(INTERVAL)
-            except KeyboardInterrupt:
-                print("\nStopped. Readings saved.")
-
     def close(self):
-        GPIO.output(self.trig, GPIO.LOW)
-        GPIO.cleanup((self.trig, self.echo))
+        self.trig.write(False)
+        self.trig.close()
+        self.echo.close()
 
 
 
@@ -101,9 +79,9 @@ class HCSR04:
 
 def main():
     sensor = HCSR04()
-    sensor.setup_pins(trig=17, echo=27)
+    sensor.setup_pins()
     try:
-        sensor.record()
+        sensor.read_distance()
     except KeyboardInterrupt:
         print("\nProgram ended.")
     finally:
