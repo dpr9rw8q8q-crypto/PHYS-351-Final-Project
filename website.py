@@ -12,7 +12,7 @@ import threading
 import xml.etree.ElementTree as ET
 
 # Modifed with ChatGPT to add direct Pi SSH server running.
-
+# Added support so tests can be done on a local computer when not on Pi.
 
 HOST = "localhost"
 PORT = 8000
@@ -161,22 +161,42 @@ def configure_touchscreen_window():
     )
 
 
+def find_browser():
+    """Prefer Chromium, then Google Chrome, including macOS app installations."""
+    candidates = ["chromium", "chromium-browser"]
+    if sys.platform == "darwin":
+        candidates.extend([
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            str(Path.home() / "Applications/Chromium.app/Contents/MacOS/Chromium"),
+        ])
+    candidates.extend(["google-chrome", "google-chrome-stable", "chrome"])
+    if sys.platform == "darwin":
+        candidates.extend([
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            str(Path.home() / "Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+        ])
+    for candidate in candidates:
+        browser = shutil.which(candidate)
+        if browser:
+            return browser
+    raise RuntimeError("Install Chromium or Google Chrome to open the tea maker.")
+
+
 def website_start():
     if not (ROOT / "web-interface" / "index.html").is_file():
         raise RuntimeError("Keep website.py next to the web-interface folder.")
-    browser = shutil.which("chromium") or shutil.which("chromium-browser")
-    if browser is None:
-        raise RuntimeError("Install Chromium with: sudo apt install chromium")
-    env = desktop_environment()
+    browser = find_browser()
+    on_mac = sys.platform == "darwin"
+    env = os.environ.copy() if on_mac else desktop_environment()
     handler = partial(OrderRequestHandler, directory=str(ROOT))
     with ThreadingHTTPServer((HOST, PORT), handler) as server:
         approve_results_access()
-        configure_touchscreen_window()
+        if not on_mac:
+            configure_touchscreen_window()
         profile = Path.home() / ".config" / APP_ID
         url = f"http://{HOST}:{PORT}/web-interface/index.html"
         command = [
             browser,
-            "--ozone-platform=wayland",
             f"--class={APP_ID}",
             f"--user-data-dir={profile}",
             "--no-first-run",
@@ -185,11 +205,14 @@ def website_start():
             "--kiosk",
             url,
         ]
+        if not on_mac:
+            command.insert(1, "--ozone-platform=wayland")
         log_path = Path.home() / ".cache" / "tea-maker-browser.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a") as log:
             process = subprocess.Popen(command, env=env, stdout=log, stderr=log)
-        print(f"Serving {url}\nOpening fullscreen on {OUTPUT}. Browser log: {log_path}")
+        screen = "the Mac display" if on_mac else OUTPUT
+        print(f"Serving {url}\nOpening fullscreen on {screen}. Browser log: {log_path}")
         try:
             server.serve_forever()
         except KeyboardInterrupt:
