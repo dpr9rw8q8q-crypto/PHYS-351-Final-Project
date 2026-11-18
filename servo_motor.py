@@ -56,3 +56,24 @@ class SolenoidValve:
                 self.digital.close()
             else:
                 pi_gpio().cleanup(self.pin)
+
+
+
+
+
+# Test
+
+def main():
+    valve = SolenoidValve()
+    valve.setup_pins()
+    try:
+        print("Opening the solenoid valve for 1 second.")
+        valve.run(duty_cycle=100, duration=1)
+    except KeyboardInterrupt:
+        print("\nProgram ended.")
+    finally:
+        valve.close()
+
+
+if __name__ == "__main__":
+    main()
