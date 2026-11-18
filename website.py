@@ -2,12 +2,16 @@ from functools import partial
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 import os
+import json
 import shutil
 import socket
 import stat
 import subprocess
 import sys
+import threading
 import xml.etree.ElementTree as ET
+
+# Modifed with ChatGPT to add direct Pi SSH server running.
 
 
 HOST = "localhost"
@@ -15,6 +19,84 @@ PORT = 8000
 ROOT = Path(__file__).resolve().parent
 APP_ID = "tea-maker-kiosk"
 OUTPUT = "SPI-1"
+RESULTS = ROOT / "web-interface" / "results.txt"
+
+
+def approve_results_access():
+    """Remember this user's approval for the specific results file."""
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    approval = config_home / APP_ID / "results-access.txt"
+    results_path = str(RESULTS.resolve())
+    try:
+        approved = approval.read_text(encoding="utf-8").strip() == results_path
+    except (FileNotFoundError, UnicodeDecodeError):
+        approved = False
+    if not approved:
+        try:
+            answer = input(f"Allow saving orders to {RESULTS} on future runs? [y/N] ").strip().lower()
+        except EOFError as error:
+            raise RuntimeError("Run website.py in a terminal to approve saving orders.") from error
+        if answer not in {"y", "yes"}:
+            raise RuntimeError("Saving orders was declined.")
+    # Check write access and create a missing file without changing existing orders.
+    with RESULTS.open("ab"):
+        pass
+    if not approved:
+        approval.parent.mkdir(parents=True, exist_ok=True)
+        temporary = approval.with_suffix(".tmp")
+        temporary.write_text(results_path + "\n", encoding="utf-8")
+        temporary.replace(approval)
+
+
+class OrderRequestHandler(SimpleHTTPRequestHandler):
+    results_lock = threading.Lock()
+
+    def do_POST(self):
+        if self.path != "/api/orders":
+            self.send_error(404)
+            return
+        expected_origin = f"http://{HOST}:{self.server.server_port}"
+        if (self.headers.get("Origin") != expected_origin
+                or self.headers.get("Host") != f"{HOST}:{self.server.server_port}"):
+            self.send_error(403, "Orders must come from the local tea maker page.")
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if not 0 < length <= 4096:
+                raise ValueError("Invalid order size.")
+            if self.headers.get_content_type() != "application/json":
+                raise ValueError("Send orders as JSON.")
+            order = json.loads(self.rfile.read(length))
+            if not isinstance(order, dict) or set(order) != {"tea", "sugar_percent", "ice", "boba"}:
+                raise ValueError("Invalid order fields.")
+            if (order["tea"] not in ("classic_milk_tea", "matcha_milk_tea", "taro_milk_tea")
+                    or type(order["sugar_percent"]) is not int
+                    or order["sugar_percent"] not in (0, 50, 100)
+                    or order["ice"] not in ("none", "light", "regular")
+                    or type(order["boba"]) is not bool):
+                raise ValueError("Invalid order selections.")
+        except (ValueError, UnicodeDecodeError) as error:
+            self.send_error(400, str(error))
+            return
+        try:
+            # Serialize requests so simultaneous orders remain separate JSON lines.
+            with self.results_lock, RESULTS.open("a+b") as results:
+                results.seek(0, os.SEEK_END)
+                needs_newline = False
+                if results.tell():
+                    results.seek(-1, os.SEEK_END)
+                    needs_newline = results.read(1) != b"\n"
+                line = ("\n" if needs_newline else "") + json.dumps(order) + "\n"
+                results.write(line.encode("utf-8"))
+                results.flush()
+                os.fsync(results.fileno())
+        except OSError as error:
+            print(f"Could not save order to {RESULTS}: {error}", file=sys.stderr)
+            self.send_error(500, "Could not write results.txt. Check the Pi terminal.")
+            return
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
 
 def desktop_environment():
@@ -86,8 +168,9 @@ def website_start():
     if browser is None:
         raise RuntimeError("Install Chromium with: sudo apt install chromium")
     env = desktop_environment()
-    handler = partial(SimpleHTTPRequestHandler, directory=str(ROOT))
+    handler = partial(OrderRequestHandler, directory=str(ROOT))
     with ThreadingHTTPServer((HOST, PORT), handler) as server:
+        approve_results_access()
         configure_touchscreen_window()
         profile = Path.home() / ".config" / APP_ID
         url = f"http://{HOST}:{PORT}/web-interface/index.html"
@@ -99,7 +182,8 @@ def website_start():
             "--no-first-run",
             "--no-default-browser-check",
             "--disable-session-crashed-bubble",
-            f"--app={url}",
+            "--kiosk",
+            url,
         ]
         log_path = Path.home() / ".cache" / "tea-maker-browser.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -122,6 +206,9 @@ def website_start():
 
 
 
+
+
+# Test
 
 def main():
     try:
