@@ -1,83 +1,14 @@
 const form = document.querySelector("#order");
 const submit = document.querySelector("#submit");
 const status = document.querySelector("#status");
-let resultsFile;
-let loadingFile = true;
-let rememberFile = false;
-
-function storedFile(mode, action) {
-  return new Promise((resolve, reject) => {
-    const open = indexedDB.open("storm-stop-boba", 1);
-    open.onupgradeneeded = () => open.result.createObjectStore("files");
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const db = open.result;
-      try {
-        const tx = db.transaction("files", mode);
-        const request = action(tx.objectStore("files"));
-        tx.oncomplete = () => {
-          db.close();
-          resolve(request.result);
-        };
-        tx.onabort = () => {
-          db.close();
-          reject(tx.error);
-        };
-      } catch (error) {
-        db.close();
-        reject(error);
-      }
-    };
-  });
-}
-
 async function saveOrder(order) {
-  if (!window.showOpenFilePicker) {
-    throw new Error("Open this localhost page in Chrome or Edge to link results.txt.");
-  }
-
-  if (!resultsFile) {
-    status.textContent = "Select web-interface/results.txt to save your first order.";
-    const [file] = await window.showOpenFilePicker({
-      id: "tea-order-results",
-      types: [{ description: "Results text file", accept: { "text/plain": [".txt"] } }],
-      excludeAcceptAllOption: true,
-    });
-    if (file.name !== "results.txt") {
-      throw new Error("Please select the results.txt file inside web-interface.");
-    }
-    resultsFile = file;
-    rememberFile = true;
-  }
-
-  if (await resultsFile.requestPermission({ mode: "readwrite" }) !== "granted") {
-    throw new Error("Allow write access to results.txt to save your order.");
-  }
-
-  if (rememberFile) {
-    await storedFile("readwrite", store => store.put(resultsFile, "results"))
-      .then(() => { rememberFile = false; })
-      .catch(() => {});
-  }
-
-  let file;
-  try {
-    file = await resultsFile.getFile();
-  } catch (error) {
-    if (error.name !== "NotFoundError") throw error;
-    resultsFile = undefined;
-    await storedFile("readwrite", store => store.delete("results")).catch(() => {});
-    throw new Error("The linked results.txt moved or was deleted. Submit again to select it.");
-  }
-  const needsNewline = file.size > 0 && await file.slice(-1).text() !== "\n";
-  const writer = await resultsFile.createWritable({ keepExistingData: true, mode: "exclusive" });
-  try {
-    await writer.seek(file.size);
-    await writer.write((needsNewline ? "\n" : "") + JSON.stringify(order) + "\n");
-    await writer.close();
-  } catch (error) {
-    await writer.abort().catch(() => {});
-    throw error;
+  const response = await fetch("/api/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(order),
+  });
+  if (!response.ok) {
+    throw new Error("Couldn’t save the order. Check the Pi terminal and try again.");
   }
 }
 
@@ -94,12 +25,12 @@ function updateSummary() {
 form.addEventListener("change", () => {
   updateSummary();
   status.textContent = "";
-  submit.disabled = loadingFile;
+  submit.disabled = false;
 });
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (loadingFile || submit.disabled) return;
+  if (submit.disabled) return;
   const order = {
     tea: selected("tea").value,
     sugar_percent: Number(selected("sugar_percent").value),
@@ -130,10 +61,8 @@ form.addEventListener("submit", async (event) => {
     });
     status.append(another);
   } catch (error) {
-    status.dataset.kind = error.name === "AbortError" ? "" : "error";
-    status.textContent = error.name === "AbortError"
-      ? "No order was saved. Submit again when you’re ready to select results.txt."
-      : error.message || "Couldn’t save the order. Please try again.";
+    status.dataset.kind = "error";
+    status.textContent = error.message || "Couldn’t save the order. Please try again.";
     submit.disabled = false;
   } finally {
     inputs.forEach(input => input.disabled = false);
@@ -142,12 +71,4 @@ form.addEventListener("submit", async (event) => {
 
 updateSummary();
 
-// Load the handle before the click so the browser's permission prompt can use that click.
-submit.disabled = true;
-storedFile("readonly", store => store.get("results"))
-  .then(file => { resultsFile = file; })
-  .catch(() => {})
-  .finally(() => {
-    loadingFile = false;
-    submit.disabled = false;
-  });
+submit.disabled = false;
